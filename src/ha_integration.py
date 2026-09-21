@@ -236,37 +236,39 @@ _INGRESS_SHIM = r"""(function(){
   if (!BASE || window.__odysseusIngressInstalled) { return; }
   window.__odysseusIngressInstalled = true;
   window.__ODYSSEUS_INGRESS_BASE__ = BASE;
+  var ORIGIN = window.location.origin;
   function fix(u){
     try {
       if (typeof u !== "string" || u.length === 0) { return u; }
+      if (ORIGIN && u.indexOf(ORIGIN + "/") === 0) { u = u.slice(ORIGIN.length); }
       if (u.charAt(0) !== "/" || u.charAt(1) === "/") { return u; }
       if (u === BASE || u.indexOf(BASE + "/") === 0) { return u; }
       return BASE + u;
     } catch (e) { return u; }
   }
+  function fixArg(v){
+    try {
+      if (typeof v === "string") { return fix(v); }
+      if (window.URL && v instanceof URL) { return fix(v.href); }
+      if (v && typeof v === "object" && v.url) { return new Request(fix(v.url), v); }
+    } catch (e) {}
+    return v;
+  }
   var _fetch = window.fetch;
   if (_fetch) {
-    window.fetch = function(input, init){
-      try {
-        if (typeof input === "string") { input = fix(input); }
-        else if (input && typeof input === "object" && input.url) {
-          input = new Request(fix(input.url), input);
-        }
-      } catch (e) {}
-      return _fetch.call(this, input, init);
-    };
+    window.fetch = function(input, init){ return _fetch.call(this, fixArg(input), init); };
   }
   if (window.XMLHttpRequest && XMLHttpRequest.prototype && XMLHttpRequest.prototype.open) {
     var _open = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url){
-      try { arguments[1] = fix(url); } catch (e) {}
+      try { arguments[1] = fixArg(url); } catch (e) {}
       return _open.apply(this, arguments);
     };
   }
   if (window.WebSocket) {
     var _WS = window.WebSocket;
     var WS = function(url, protocols){
-      return protocols === undefined ? new _WS(fix(url)) : new _WS(fix(url), protocols);
+      return protocols === undefined ? new _WS(fixArg(url)) : new _WS(fixArg(url), protocols);
     };
     WS.prototype = _WS.prototype;
     WS.CONNECTING = _WS.CONNECTING; WS.OPEN = _WS.OPEN;
@@ -276,10 +278,17 @@ _INGRESS_SHIM = r"""(function(){
   if (window.EventSource) {
     var _ES = window.EventSource;
     var ES = function(url, opts){
-      return opts === undefined ? new _ES(fix(url)) : new _ES(fix(url), opts);
+      return opts === undefined ? new _ES(fixArg(url)) : new _ES(fixArg(url), opts);
     };
     ES.prototype = _ES.prototype;
     window.EventSource = ES;
+  }
+  var _winOpen = window.open;
+  if (_winOpen) {
+    window.open = function(url){
+      try { arguments[0] = fixArg(url); } catch (e) {}
+      return _winOpen.apply(this, arguments);
+    };
   }
   if (window.history && window.history.pushState) {
     var _ps = window.history.pushState, _rs = window.history.replaceState;
@@ -302,17 +311,22 @@ _INGRESS_SHIM = r"""(function(){
 
 
 _ROOT_PATH_RE = re.compile(r"([\"'`(])(/(?:api|static)/)")
+# Template literals like `${API_BASE}/api/sessions` (API_BASE is
+# window.location.origin in the SPA) put an interpolation, not a quote, before
+# the path, so they need their own pattern.
+_INTERP_PATH_RE = re.compile(r"(\$\{[A-Za-z_$][\w.$]*\})(/(?:api|static)/)")
 
 
 def _prefix_root_paths(text: str, base: str) -> str:
     """Prefix root-absolute application URLs with the ingress base.
 
-    Only URLs that immediately follow a quote, backtick or ``url(`` are
-    touched, so prose and regexes containing ``/api/`` are left alone. A single
-    regex pass is used so an inserted base (which itself contains ``/api/``) can
-    never be prefixed a second time.
+    Handles both quoted literals (``'/api/x'``) and origin-interpolated
+    template literals (``${API_BASE}/api/x``). A single regex pass per pattern is
+    used so an inserted base (which itself contains ``/api/``) can never be
+    prefixed a second time.
     """
-    return _ROOT_PATH_RE.sub(lambda m: m.group(1) + base + m.group(2), text)
+    text = _ROOT_PATH_RE.sub(lambda m: m.group(1) + base + m.group(2), text)
+    return _INTERP_PATH_RE.sub(lambda m: m.group(1) + base + m.group(2), text)
 
 
 def rewrite_ingress_body(body: bytes, content_type: str, base: str, nonce: str = "") -> bytes:

@@ -196,6 +196,26 @@ def test_rewrite_js_prefixes_quoted_paths():
     assert "`/base/static/y`" in text
 
 
+def test_rewrite_js_prefixes_origin_interpolated_urls():
+    js = (
+        "fetch(`${API_BASE}/api/sessions`);"
+        "window.open(`${API_BASE}/api/research/report/1`);"
+        "new URL(`${window.location.origin}/api/history/1`);"
+    ).encode("utf-8")
+    text = ha.rewrite_ingress_body(js, "application/javascript", "/base").decode()
+    assert "${API_BASE}/base/api/sessions" in text
+    assert "${API_BASE}/base/api/research/report/1" in text
+    assert "${window.location.origin}/base/api/history/1" in text
+    assert text.count("/base/base/") == 0
+
+
+def test_shim_covers_absolute_origin_urls_and_window_open():
+    out = ha.rewrite_ingress_body(b"<head></head>", "text/html", "/base", "n").decode()
+    assert "window.location.origin" in out
+    assert "function fixArg" in out
+    assert "window.open" in out
+
+
 def test_rewrite_css_prefixes_url_function():
     css = b"@font-face{src:url(/static/fonts/x.woff2)}"
     text = ha.rewrite_ingress_body(css, "text/css", "/base").decode()
