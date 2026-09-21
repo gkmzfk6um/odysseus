@@ -367,6 +367,16 @@ class IngressPathMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request, call_next) -> Response:
         base = ingress_base(request)
+        if base:
+            # The rewritten body differs per ingress path, but static files
+            # still advertise a path-independent ETag/Last-Modified. Drop the
+            # conditional-request headers so a browser that cached the
+            # un-rewritten asset can never receive a 304 and keep using it.
+            request.scope["headers"] = [
+                (k, v)
+                for (k, v) in request.scope.get("headers", [])
+                if k.lower() not in (b"if-none-match", b"if-modified-since")
+            ]
         response = await call_next(request)
         if not base or response.status_code in (204, 304):
             return response
@@ -381,6 +391,10 @@ class IngressPathMiddleware(BaseHTTPMiddleware):
         new_body = rewrite_ingress_body(body, content_type, base, nonce)
         headers = dict(response.headers)
         headers.pop("content-length", None)
+        # Rewritten bodies must not be cached under the original validators.
+        headers.pop("etag", None)
+        headers.pop("last-modified", None)
+        headers["cache-control"] = "no-store"
         return Response(
             content=new_body,
             status_code=response.status_code,

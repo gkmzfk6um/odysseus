@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5
+
+- Stop serving stale ingress assets. Static files advertise an ETag that does
+  not change with the rewritten body, so a browser could keep an old JS bundle
+  via a 304 even after a rebuild. Ingress responses now drop the conditional
+  request headers and return `Cache-Control: no-store` without ETag/Last-Modified.
+
 ## 1.0.4
 
 - Fix ingress API calls returning HTTP 404. The SPA builds absolute URLs from

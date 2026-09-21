@@ -238,3 +238,56 @@ def test_ha_config_summary_shape(monkeypatch):
     summary = ha.ha_config_summary()
     assert summary["ingress_auth"] is True
     assert summary["admin_users"] == ["alice", "bob"]
+
+
+# ---------------------------------------------------------------------------
+# Ingress middleware (cache-busting + rewriting)
+# ---------------------------------------------------------------------------
+
+def _ingress_test_app():
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+
+    async def asset(request):
+        return PlainTextResponse(
+            "fetch('/api/x')",
+            media_type="text/javascript",
+            headers={
+                "etag": 'W/"abc"',
+                "last-modified": "Mon, 01 Jan 2024 00:00:00 GMT",
+                "cache-control": "no-cache",
+            },
+        )
+
+    app = Starlette(routes=[Route("/static/app.js", asset)])
+    app.add_middleware(ha.IngressPathMiddleware)
+    return app
+
+
+def test_ingress_middleware_rewrites_and_busts_conditional_cache():
+    from starlette.testclient import TestClient
+
+    client = TestClient(_ingress_test_app())
+    response = client.get(
+        "/static/app.js",
+        headers={
+            "X-Ingress-Path": "/api/hassio_ingress/tok",
+            "If-None-Match": 'W/"abc"',
+        },
+    )
+    assert response.status_code == 200
+    assert "/api/hassio_ingress/tok/api/x" in response.text
+    assert response.headers["cache-control"] == "no-store"
+    assert "etag" not in response.headers
+    assert "last-modified" not in response.headers
+
+
+def test_ingress_middleware_leaves_direct_requests_alone():
+    from starlette.testclient import TestClient
+
+    client = TestClient(_ingress_test_app())
+    response = client.get("/static/app.js")
+    assert response.status_code == 200
+    assert response.text == "fetch('/api/x')"
+    assert response.headers["etag"] == 'W/"abc"'
