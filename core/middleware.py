@@ -11,6 +11,7 @@ from starlette.responses import Response
 from starlette.routing import get_route_path
 
 from src.owner_identity import INTERNAL_TOOL_USER, auth_disabled
+from src.ha_integration import is_ingress_proxied_request
 
 
 # Per-process token that lets the in-app tool layer hit admin-gated
@@ -93,6 +94,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         path = request.url.path
 
+        # Home Assistant ingress embeds the UI in the HA frontend iframe, so a
+        # blanket deny-all framing policy would break the sidebar panel. Relax
+        # to same-origin ONLY for requests that arrive through trusted ingress.
+        ingress_framed = is_ingress_proxied_request(request)
+        frame_ancestors = "'self'" if ingress_framed else "'none'"
+
         # Tool render endpoints
         is_tool_render = path.startswith("/api/tools/") and path.endswith("/render")
         # Document library PDF preview endpoint
@@ -131,7 +138,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "frame-ancestors 'self'"
             )
         else:
-            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-Frame-Options"] = (
+                "SAMEORIGIN" if ingress_framed else "DENY"
+            )
             # NOTE: `style-src 'unsafe-inline'` is intentionally retained.
             # `static/index.html` and `static/login.html` ship inline <style>
             # blocks, and several JS modules build runtime `style=""` attrs.
@@ -147,6 +156,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "media-src 'self' blob:; "
                 "connect-src 'self'; "
                 "frame-src 'self'; "
-                "frame-ancestors 'none'"
+                f"frame-ancestors {frame_ancestors}"
             )
         return response

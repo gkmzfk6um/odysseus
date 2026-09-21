@@ -121,6 +121,12 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
     _setup_limiter = RateLimiter(max_requests=3, window_seconds=300)
 
     def _get_current_user(request: Request) -> Optional[str]:
+        # Middleware (including the Home Assistant ingress bridge) stamps the
+        # authenticated user on request.state; prefer it over the cookie so HA
+        # users work on every admin-gated route.
+        state_user = getattr(getattr(request, "state", None), "current_user", None)
+        if state_user:
+            return state_user
         token = request.cookies.get(SESSION_COOKIE)
         return auth_manager.get_username_for_token(token)
 
@@ -168,7 +174,22 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
             raise HTTPException(429, "Too many requests — try again later")
         # Verify password first
         username = body.username.strip().lower()
-        if not await asyncio.to_thread(auth_manager.verify_password, username, body.password):
+        local_ok = await asyncio.to_thread(auth_manager.verify_password, username, body.password)
+        if not local_ok:
+            # Home Assistant add-on: no local account matched, so try the
+            # credentials against Home Assistant users via the Supervisor auth
+            # API. Disabled unless ODYSSEUS_HA_AUTH_API=true.
+            from src.ha_integration import provision_ha_user, verify_ha_credentials
+
+            if await verify_ha_credentials(username, body.password):
+                ha_user = provision_ha_user(
+                    auth_manager,
+                    {"id": username, "username": username, "display_name": username},
+                )
+                if ha_user:
+                    username = ha_user
+                    local_ok = True
+        if not local_ok:
             raise HTTPException(401, "Invalid credentials")
         # Check 2FA if enabled
         if auth_manager.totp_enabled(username):
@@ -204,8 +225,20 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
 
     @router.get("/status")
     async def auth_status(request: Request):
-        token = request.cookies.get(SESSION_COOKIE)
-        result = auth_manager.status(token)
+        state_user = getattr(getattr(request, "state", None), "current_user", None)
+        if state_user:
+            # Authenticated by middleware instead of a session cookie — e.g. a
+            # Home Assistant ingress request. Report it as logged in so the SPA
+            # does not bounce to /login.
+            result = {
+                "configured": auth_manager.is_configured,
+                "authenticated": True,
+                "username": state_user,
+                "is_admin": auth_manager.is_admin(state_user),
+            }
+        else:
+            token = request.cookies.get(SESSION_COOKIE)
+            result = auth_manager.status(token)
         result["signup_enabled"] = auth_manager.signup_enabled
         # Include the caller's effective privileges so the frontend can
         # hide / dim UI controls the user isn't allowed to use. Admins get

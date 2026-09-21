@@ -85,6 +85,13 @@ import bcrypt as _bcrypt
 from src.app_helpers import abs_join, serve_html_with_nonce
 from src.generated_images import GENERATED_IMAGE_HEADERS, resolve_generated_image_path
 from src.owner_identity import auth_disabled
+from src.ha_integration import (
+    IngressPathMiddleware,
+    get_ha_identity,
+    ha_config_summary,
+    is_ha_ingress_request,
+    provision_ha_user,
+)
 from starlette.responses import RedirectResponse
 
 # ========= LOGGING =========
@@ -151,6 +158,13 @@ app.add_middleware(
         "X-TZ-Offset",
     ],
 )
+
+# ========= HOME ASSISTANT INGRESS PATH REWRITING =========
+# Added before GZip so this middleware sits INSIDE it: responses are rewritten
+# while still uncompressed, then gzip runs last. It is also inside the
+# security-headers middleware, which is added below, so the CSP nonce used by
+# the injected ingress shim is already on request.state.
+app.add_middleware(IngressPathMiddleware)
 
 # ========= RESPONSE COMPRESSION (gzip) =========
 # The frontend's text assets (style.css, index.html, the JS bundles) shipped
@@ -373,6 +387,21 @@ if AUTH_ENABLED:
             # header; never a credentialed request).
             if is_cors_preflight(request.method, request.headers):
                 return await call_next(request)
+            # Home Assistant add-on ingress. Supervisor authenticates the HA
+            # user before proxying here, so a request carrying the forwarded
+            # X-Remote-User-* identity from the Supervisor address is already
+            # authenticated. Map it onto an Odysseus account and continue. This
+            # runs before the auth-exempt check so exempt routes (notably
+            # /api/auth/status, which the SPA uses to decide whether to show the
+            # login page) also see the ingress identity.
+            if is_ha_ingress_request(request):
+                identity = get_ha_identity(request) or {}
+                username = provision_ha_user(auth_manager, identity)
+                if username:
+                    request.state.current_user = username
+                    request.state.api_token = False
+                    request.state.ha_ingress = True
+                    return await call_next(request)
             if _is_auth_exempt(path):
                 return await call_next(request)
             # In-process internal-tool token bypass. Used by the agent
@@ -486,6 +515,10 @@ if AUTH_ENABLED:
     logger.info("Auth middleware enabled (AUTH_ENABLED=true)")
 else:
     logger.info("Auth middleware disabled (set AUTH_ENABLED=true to enable)")
+
+_ha_summary = ha_config_summary()
+if any(_ha_summary.get(k) for k in ("ingress_auth", "password_auth")):
+    logger.info("Home Assistant integration enabled: %s", _ha_summary)
 
 # ========= STATIC FILES =========
 os.makedirs(STATIC_DIR, exist_ok=True)

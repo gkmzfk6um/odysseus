@@ -1,0 +1,91 @@
+name: Odysseus
+version: "1.0.3"
+slug: odysseus
+description: >-
+  Self-hosted AI workspace for chat, agents, deep research, documents, email,
+  notes, tasks and calendar, with optional local model serving.
+url: https://github.com/gkmzfk6um/odysseus
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+stage: stable
+
+# ---------------------------------------------------------------------------
+# Sidebar / panel integration.
+#
+# Ingress embeds the Odysseus web UI in the Home Assistant UI and lets the
+# Supervisor authenticate the HA user for us. The HTTP gateway only accepts
+# traffic from the Supervisor, so the app never has to expose ingress auth
+# itself.
+# ---------------------------------------------------------------------------
+ingress: true
+ingress_port: 7000
+# Streaming keeps Server-Sent Events (chat, shell, research, model probes)
+# unbuffered instead of collecting the whole response first.
+ingress_stream: true
+panel_icon: mdi:robot-happy
+panel_title: Odysseus
+# false = every Home Assistant user sees the panel and is auto-provisioned an
+# Odysseus account on first visit. Set true to restrict the panel to HA admins.
+panel_admin: false
+
+# ---------------------------------------------------------------------------
+# Direct port access. The web UI and API are also reachable on this port,
+# bypassing Home Assistant ingress. Set the host port to null in the add-on
+# network settings to disable it.
+# ---------------------------------------------------------------------------
+ports:
+  7000/tcp: 7000
+ports_description:
+  7000/tcp: Odysseus web UI and API (direct access, outside ingress)
+
+# "OPEN WEB UI" button in the add-on page opens the direct port.
+webui: "http://[HOST]:[PORT:7000]/"
+watchdog: "tcp://[HOST]:[PORT:7000]"
+
+# Access to the Home Assistant user backend (Supervisor /auth), used to accept
+# HA usernames + passwords on the direct-port login screen.
+auth_api: true
+hassio_api: true
+hassio_role: default
+
+# Share is mounted read-write at /share so agent file tools can exchange files
+# with other add-ons. /data (always mounted) holds all Odysseus state.
+map:
+  - type: share
+    read_only: false
+
+options:
+  # --- Home Assistant authentication -------------------------------------
+  ha_ingress_auth: true
+  ha_password_auth: true
+  ha_admin_users: []
+  ha_bootstrap_admin: true
+  # --- Odysseus native authentication ------------------------------------
+  auth_enabled: true
+  # --- Networking --------------------------------------------------------
+  llm_host: localhost
+  allowed_origins: []
+  # --- Escape hatch ------------------------------------------------------
+  extra_env: []
+
+schema:
+  ha_ingress_auth: bool
+  ha_password_auth: bool
+  ha_admin_users:
+    - str
+  ha_bootstrap_admin: bool
+  auth_enabled: bool
+  # Optional (no default): empty until the user sets them.
+  admin_user: str?
+  admin_password: password?
+  ollama_base_url: str?
+  openai_api_key: password?
+  llm_host: str
+  allowed_origins:
+    - str
+  extra_env:
+    - str

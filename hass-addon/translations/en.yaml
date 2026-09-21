@@ -1,0 +1,56 @@
+configuration:
+  ha_ingress_auth:
+    name: Home Assistant ingress authentication
+    description: >-
+      Trust the Home Assistant user identity passed by Supervisor ingress and
+      sign that user in automatically. This is what makes the sidebar panel work
+      without a second login.
+  ha_password_auth:
+    name: Accept Home Assistant credentials
+    description: >-
+      On the direct-access login screen, also verify the username and password
+      against Home Assistant users (via the Supervisor auth API). Local
+      Odysseus accounts still work.
+  ha_admin_users:
+    name: Home Assistant admins
+    description: >-
+      Home Assistant usernames that should be Odysseus administrators. Everyone
+      else gets a standard, non-admin Odysseus account.
+  ha_bootstrap_admin:
+    name: First user becomes admin
+    description: >-
+      When no Odysseus account exists yet, the first Home Assistant user to open
+      the panel becomes an administrator.
+  auth_enabled:
+    name: Require login for direct access
+    description: >-
+      Keep Odysseus authentication enabled for the direct port. Turning this off
+      makes anyone who can reach the port a full user.
+  admin_user:
+    name: Initial admin username
+    description: Optional local Odysseus admin created on first start.
+  admin_password:
+    name: Initial admin password
+    description: >-
+      Password for the initial local admin. At least 8 characters. Ignored when
+      no username is set.
+  llm_host:
+    name: LLM host
+    description: Hostname or IP of the default LLM server (e.g. an Ollama host).
+  ollama_base_url:
+    name: Ollama base URL
+    description: Full URL of an Ollama server, e.g. http://host.docker.internal:11434.
+  openai_api_key:
+    name: OpenAI API key
+    description: Optional API key for OpenAI-compatible providers.
+  allowed_origins:
+    name: Allowed CORS origins
+    description: Extra browser origins allowed to call the API, e.g. http://homeassistant.local:7000.
+  extra_env:
+    name: Extra environment variables
+    description: >-
+      Additional KEY=VALUE entries to pass to Odysseus. Use this for any
+      provider keys or tuning variables not covered above.
+
+network:
+  7000/tcp: Odysseus web UI and API (direct access, outside ingress)
