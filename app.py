@@ -704,6 +704,8 @@ from routes.upload_routes import setup_upload_routes
 upload_router, upload_cleanup_func = setup_upload_routes(upload_handler)
 app.include_router(upload_router)
 upload_cleanup_task = None
+# Home Assistant activity entity publisher (opt-in; None unless MQTT is set up).
+_mqtt_publisher = None
 
 # Emoji SVG proxy (same-origin, lazy-cached Twemoji) — lets the chat render
 # emojis as flat SVG instead of system color glyphs.
@@ -1302,6 +1304,37 @@ async def _startup_event():
     from src.cookbook_serve_lifecycle import cookbook_serve_lifecycle_loop
     _startup_tasks.append(asyncio.create_task(cookbook_serve_lifecycle_loop()))
 
+    # Home Assistant live-activity entity. Opt-in: only starts when the add-on
+    # found an MQTT broker and exported ODYSSEUS_MQTT_*. No-op otherwise.
+    try:
+        from src.mqtt_publisher import MqttActivityPublisher, mqtt_enabled
+
+        if mqtt_enabled():
+            def _activity_snapshot():
+                from src.activity import collect_activity, make_session_info
+                from src import bg_jobs
+                import routes.chat_routes as _cr
+
+                rh = getattr(app.state, "research_handler", None)
+                sm = getattr(app.state, "session_manager", None)
+                try:
+                    jobs = bg_jobs._load()
+                except Exception:
+                    jobs = {}
+                return collect_activity(
+                    chat_streams=getattr(_cr, "_active_streams", {}) or {},
+                    research_tasks=getattr(rh, "_active_tasks", {}) if rh is not None else {},
+                    bg_jobs=jobs,
+                    session_info=make_session_info(sm),
+                )
+
+            global _mqtt_publisher
+            _mqtt_publisher = MqttActivityPublisher(_activity_snapshot)
+            _startup_tasks.append(asyncio.create_task(_mqtt_publisher.run()))
+            logger.info("Home Assistant activity publisher enabled (MQTT)")
+    except Exception as _e:
+        logger.warning("Activity publisher startup failed (non-critical): %s", _e)
+
     logger.info("Application startup complete")
 
 async def _shutdown_event():
@@ -1322,11 +1355,19 @@ async def _shutdown_event():
         await webhook_manager.close()
     except Exception as e:
         logger.warning(f"Webhook manager shutdown error: {e}")
-    # Disconnect all MCP servers
+    # MCP shutdown error
     try:
         await mcp_manager.disconnect_all()
     except Exception as e:
         logger.warning(f"MCP shutdown error: {e}")
+    # Stop the Home Assistant activity publisher (no-op when it never started).
+    global _mqtt_publisher
+    if _mqtt_publisher is not None:
+        try:
+            _mqtt_publisher.stop()
+        except Exception:
+            pass
+        _mqtt_publisher = None
     logger.info("Application shutdown complete")
 
 

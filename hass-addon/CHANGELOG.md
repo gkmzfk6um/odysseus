@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.6
+
+- Add a **Model provider** dropdown + **Provider API key** field to the add-on
+  options. On start the add-on seeds a ready-to-use model endpoint (correct base
+  URL + encrypted key) for OpenAI, Anthropic, OpenRouter, Groq, DeepSeek,
+  Google Gemini or Mistral.
+- Publish live agent activity to Home Assistant via MQTT discovery:
+  - `sensor.odysseus_activity` — global, anonymised (`idle` / `N working`,
+    attributes carry model + stage only).
+  - `sensor.odysseus_activity_<owner>` — per owner, state is the thread title.
+  Optional: only active when an MQTT broker is available.
+
 ## 1.0.5
 
 - Stop serving stale ingress assets. Static files advertise an ETag that does

@@ -70,12 +70,37 @@ ha_bootstrap_admin: true    # First HA user becomes admin when none exists
 auth_enabled: true          # Require login for direct access
 admin_user: ""              # Optional initial local admin username
 admin_password: ""          # Optional initial local admin password
+llm_provider: none          # openai | anthropic | openrouter | groq | deepseek | google | mistral | none
+llm_api_key: ""             # API key for the selected provider (stored encrypted)
+llm_model: ""               # Optional model ID to pin (else pick from the list in the app)
 llm_host: localhost         # Default LLM server host
 ollama_base_url: ""         # e.g. http://host.docker.internal:11434
-openai_api_key: ""          # OpenAI / compatible provider key
 allowed_origins: []         # Extra CORS origins
 extra_env: []               # Free-form KEY=VALUE entries
 ```
+
+### Model provider
+
+Pick your provider in the **Model provider** dropdown and paste the key into
+**Provider API key**. On start the add-on creates a shared model endpoint for
+that provider (`OpenAI (add-on)`, `OpenRouter (add-on)`, …) with the correct
+base URL and the key stored encrypted in `/data`. The model list is discovered
+automatically; optionally pin one with **Default model**. The dropdown only
+lists providers that need nothing but a key:
+
+| Provider | Base URL |
+| --- | --- |
+| OpenAI | `https://api.openai.com/v1` |
+| Anthropic | `https://api.anthropic.com/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| Groq | `https://api.groq.com/openai/v1` |
+| DeepSeek | `https://api.deepseek.com/v1` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| Mistral | `https://api.mistral.ai/v1` |
+
+Local servers (Ollama, LM Studio) are configured with `ollama_base_url` or in
+the app itself. The add-on option is authoritative: it rewrites the endpoint's
+key on every start.
 
 Anything Odysseus supports through environment variables can be passed with
 `extra_env`, for example:
@@ -85,6 +110,45 @@ extra_env:
   - TAVILY_API_KEY=...
   - ODYSSEUS_INPROCESS_TASKS=1
 ```
+
+## Live activity in Home Assistant
+
+When an **MQTT broker** (e.g. the Mosquitto add-on) is available, the add-on
+publishes the current agent activity as Home Assistant entities via MQTT
+discovery — no manual YAML needed. The add-on declares the `mqtt` service, so
+broker credentials are picked up automatically.
+
+| Entity | State | Notes |
+| --- | --- | --- |
+| `sensor.odysseus_activity` | `idle` or `N working` | Global and anonymised. Attributes list only model + stage, never thread titles. |
+| `sensor.odysseus_activity_<owner>` | thread title, or `idle` | One per active owner. The state is that owner's thread title; restrict it per user with Home Assistant's entity visibility if desired. |
+
+The entities appear under the **Odysseus** device. To show them on a dashboard,
+add a Markdown card (Settings → Dashboards → Edit → Add card → Manual):
+
+```yaml
+type: markdown
+title: Odysseus activity
+content: >-
+  {% set n = states('sensor.odysseus_activity') %}
+  {% if n == 'idle' %}Nothing running.
+  {% else %}{{ n }}:
+  {% for item in state_attr('sensor.odysseus_activity', 'items') %}
+  - {{ item.model }} — {{ item.stage }}
+  {% endfor %}{% endif %}
+```
+
+Or a plain Entities card for the raw states:
+
+```yaml
+type: entities
+title: Odysseus activity
+entities:
+  - entity: sensor.odysseus_activity
+  - entity: sensor.odysseus_activity_alice
+```
+
+Without an MQTT broker nothing is published and the add-on runs normally.
 
 ## Data and backups
 

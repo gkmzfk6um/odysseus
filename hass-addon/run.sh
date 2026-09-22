@@ -59,8 +59,38 @@ LLM_HOST="$(_opt llm_host)"
 [ -n "$LLM_HOST" ] && export LLM_HOST="$LLM_HOST"
 OLLAMA_BASE_URL="$(_opt ollama_base_url)"
 [ -n "$OLLAMA_BASE_URL" ] && export OLLAMA_BASE_URL="$OLLAMA_BASE_URL"
-OPENAI_API_KEY="$(_opt openai_api_key)"
-[ -n "$OPENAI_API_KEY" ] && export OPENAI_API_KEY="$OPENAI_API_KEY"
+
+# Provider dropdown + API key. The seed script (run after DB init) turns these
+# into a ready-to-use model endpoint; openai additionally feeds OPENAI_API_KEY
+# so model discovery sees it immediately.
+SEED_PROVIDER="$(_opt llm_provider)"
+SEED_KEY="$(_opt llm_api_key)"
+SEED_MODEL="$(_opt llm_model)"
+if [ -n "$SEED_PROVIDER" ] && [ "$SEED_PROVIDER" != "none" ] && [ -n "$SEED_KEY" ]; then
+    export ODYSSEUS_SEED_PROVIDER="$SEED_PROVIDER"
+    export ODYSSEUS_SEED_API_KEY="$SEED_KEY"
+    export ODYSSEUS_SEED_MODEL="$SEED_MODEL"
+    if [ "$SEED_PROVIDER" = "openai" ]; then
+        export OPENAI_API_KEY="$SEED_KEY"
+    fi
+fi
+
+# --- Home Assistant MQTT (live activity entity) -----------------------------
+# Broker credentials live behind the Supervisor services API. Declaring the
+# mqtt service in config.yaml is what makes this endpoint return data; without a
+# broker the call fails and the activity publisher simply stays disabled.
+MQTT_JSON="$(curl -fsS -H "Authorization: Bearer ${SUPERVISOR_TOKEN:-}" \
+    http://supervisor/services/mqtt 2>/dev/null || true)"
+if [ -n "$MQTT_JSON" ]; then
+    export ODYSSEUS_MQTT_HOST="$(printf '%s' "$MQTT_JSON" | jq -r '.data.host // empty')"
+    export ODYSSEUS_MQTT_PORT="$(printf '%s' "$MQTT_JSON" | jq -r '.data.port // empty')"
+    export ODYSSEUS_MQTT_USERNAME="$(printf '%s' "$MQTT_JSON" | jq -r '.data.username // empty')"
+    export ODYSSEUS_MQTT_PASSWORD="$(printf '%s' "$MQTT_JSON" | jq -r '.data.password // empty')"
+    if [ -n "$ODYSSEUS_MQTT_HOST" ]; then
+        export ODYSSEUS_MQTT_ENABLED=true
+        log "MQTT broker at ${ODYSSEUS_MQTT_HOST}:${ODYSSEUS_MQTT_PORT}; activity entity enabled"
+    fi
+fi
 
 ALLOWED_ORIGINS="$(jq -r '(.allowed_origins // []) | join(",")' "$OPTIONS" 2>/dev/null || true)"
 [ -n "$ALLOWED_ORIGINS" ] && export ALLOWED_ORIGINS="$ALLOWED_ORIGINS"
@@ -81,6 +111,11 @@ sys.path.insert(0, "/app")
 os.environ.setdefault("ODYSSEUS_DATA_DIR", "/data")
 import core.database  # noqa: F401  (import side effect: create_all)
 PY
+
+# Seed the provider model endpoint chosen in the add-on options.
+if [ -n "${ODYSSEUS_SEED_PROVIDER:-}" ]; then
+    python /seed_provider.py || log "provider seed failed (continuing)"
+fi
 
 # Create the initial admin only when the operator supplied credentials.
 # Otherwise the first Home Assistant user is promoted by the ingress bridge

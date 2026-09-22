@@ -63,12 +63,15 @@ RUN set -eux; \
 WORKDIR /app
 
 # Python dependencies first so this layer caches across source changes.
+# paho-mqtt powers the optional Home Assistant activity entity; the app imports
+# it lazily and no-ops when it (or MQTT) is absent.
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir python-magic==0.4.27
+    && pip install --no-cache-dir python-magic==0.4.27 paho-mqtt
 
 RUN mkdir -p data logs services/cache/search
 
 COPY run.sh /run.sh
+COPY seed_provider.py /seed_provider.py
 RUN chmod a+x /run.sh
 
 # All persistent state lives on the Home Assistant /data volume. HOME points
