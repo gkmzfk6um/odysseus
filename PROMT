@@ -1,0 +1,6 @@
+Erstelle ein Home Assistant OS Add-on für Odysseus (AI Assistant WebUI).
+- komplette kompativel mit homeassiatnt addon style (research!)
+- integration in das sidepannel
+- being able to connect via the port directly
+- is it possible to do auth via the homeassistant users
+- instalation via adding the repo url and being able to just click install
