@@ -1,5 +1,5 @@
 name: Odysseus
-version: "1.0.6"
+version: "1.0.7"
 slug: odysseus
 description: >-
   Self-hosted AI workspace for chat, agents, deep research, documents, email,
@@ -55,8 +55,9 @@ hassio_role: default
 # Access to the Home Assistant MQTT broker, used to publish the live agent
 # activity entity (sensor.odysseus_*) for dashboards. Optional: without a
 # Mosquitto/MQTT broker the add-on still runs, it just publishes nothing.
+# Supervisor requires the rights suffix: "<service>:want" (optional) or ":need".
 services:
-  - mqtt
+  - mqtt:want
 
 # Share is mounted read-write at /share so agent file tools can exchange files
 # with other add-ons. /data (always mounted) holds all Odysseus state.

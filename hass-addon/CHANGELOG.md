@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.7
+
+- Fix an invalid add-on manifest that made Home Assistant hide the add-on: the
+  MQTT service must be declared as `mqtt:want`. Supervisor's service schema
+  requires a rights suffix (`provide`/`want`/`need`); the bare `mqtt` entry
+  failed validation for the whole config.
+- Add a config-validation test mirroring the Supervisor rules (services,
+  watchdog/webui URLs, map entries, options/schema).
+
 ## 1.0.6
 
 - Add a **Model provider** dropdown + **Provider API key** field to the add-on
