@@ -65,9 +65,14 @@ def global_discovery(discovery_prefix: str, base_topic: str, device_name: str) -
     return {
         "topic": f"{discovery_prefix}/sensor/odysseus_activity/config",
         "payload": {
-            "name": "Odysseus activity",
-            "unique_id": "odysseus_activity",
-            "object_id": "odysseus_activity",
+            # MQTT entities set has_entity_name=True, so Home Assistant prefixes
+            # the DEVICE name ("Odysseus") to this entity name to build the
+            # entity_id and friendly name. Keep it to the entity-specific part
+            # ("Activity"), otherwise the id becomes a doubled
+            # sensor.odysseus_odysseus_activity.
+            "name": "Activity",
+            "unique_id": "odysseus_activity_status",
+            "object_id": "activity",
             "state_topic": f"{base_topic}/activity/state",
             "json_attributes_topic": f"{base_topic}/activity/attributes",
             "icon": "mdi:robot-happy",
@@ -86,9 +91,11 @@ def owner_discovery(
     return {
         "topic": f"{discovery_prefix}/sensor/odysseus_activity_{slug}/config",
         "payload": {
-            "name": f"Odysseus activity {owner}",
-            "unique_id": f"odysseus_activity_{slug}",
-            "object_id": f"odysseus_activity_{slug}",
+            # See global_discovery: "Activity <owner>" becomes
+            # sensor.odysseus_activity_<slug> after the device prefix.
+            "name": f"Activity {owner}",
+            "unique_id": f"odysseus_activity_status_{slug}",
+            "object_id": f"activity_{slug}",
             "state_topic": f"{base_topic}/activity/{slug}/state",
             "json_attributes_topic": f"{base_topic}/activity/{slug}/attributes",
             "icon": "mdi:robot-happy",

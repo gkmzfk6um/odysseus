@@ -97,12 +97,19 @@ def test_slugify():
     assert mqtt.slugify("a--b__C") == "a_b_c"
 
 
-def test_discovery_topics_and_ids():
+def test_discovery_uses_entity_specific_name_to_avoid_doubled_id():
+    # has_entity_name=True: HA prefixes the device name, so the payload name
+    # must be only the entity part or the id becomes odysseus_odysseus_activity.
     g = mqtt.global_discovery("homeassistant", "odysseus", "Odysseus")
     assert g["topic"] == "homeassistant/sensor/odysseus_activity/config"
-    assert g["payload"]["unique_id"] == "odysseus_activity"
+    assert g["payload"]["name"] == "Activity"
+    assert g["payload"]["unique_id"] == "odysseus_activity_status"
+    assert g["payload"]["object_id"] == "activity"
+    assert g["payload"]["device"]["name"] == "Odysseus"
     o = mqtt.owner_discovery("homeassistant", "odysseus", "Odysseus", "Alice Smith")
     assert o["topic"] == "homeassistant/sensor/odysseus_activity_alice_smith/config"
+    assert o["payload"]["name"] == "Activity Alice Smith"
+    assert o["payload"]["unique_id"] == "odysseus_activity_status_alice_smith"
     assert o["payload"]["state_topic"] == "odysseus/activity/alice_smith/state"
 
 

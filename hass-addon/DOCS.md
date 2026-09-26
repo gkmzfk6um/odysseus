@@ -188,18 +188,27 @@ broker credentials are picked up automatically.
 | `sensor.odysseus_activity` | `idle` or `N working` | Global and anonymised. Attributes list only model + stage, never thread titles. |
 | `sensor.odysseus_activity_<owner>` | thread title, or `idle` | One per active owner. The state is that owner's thread title; restrict it per user with Home Assistant's entity visibility if desired. |
 
-The entities appear under the **Odysseus** device. To show them on a dashboard,
-add a Markdown card (Settings → Dashboards → Edit → Add card → Manual):
+The entities appear under the **Odysseus** device. Home Assistant builds their
+ids from the device + entity name, so they are exactly
+`sensor.odysseus_activity` and `sensor.odysseus_activity_<owner>`. After
+upgrading from a build before 1.0.9 you may see an old
+`sensor.odysseus_odysseus_activity`; open it in Settings → Devices & Services →
+Entities and delete it.
+
+To show them on a dashboard, add a Markdown card (Settings → Dashboards → Edit →
+Add card → Manual):
 
 ```yaml
 type: markdown
 title: Odysseus activity
 content: >-
   {% set n = states('sensor.odysseus_activity') %}
-  {% if n == 'idle' %}Nothing running.
+  {% set items = state_attr('sensor.odysseus_activity', 'items') or [] %}
+  {% if n in ['unknown', 'unavailable'] %}Entity not found yet.
+  {% elif n == 'idle' or items | count == 0 %}Nothing running.
   {% else %}{{ n }}:
-  {% for item in state_attr('sensor.odysseus_activity', 'items') %}
-  - {{ item.model }} — {{ item.stage }}
+  {% for item in items %}
+  - {{ item.model or 'unknown' }} — {{ item.stage or 'working' }}
   {% endfor %}{% endif %}
 ```
 

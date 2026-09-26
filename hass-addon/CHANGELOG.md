@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.9
+
+- Fix the activity entity id. MQTT entities set `has_entity_name`, so Home
+  Assistant prefixes the device name ("Odysseus") to the entity name; our name
+  "Odysseus activity" produced `sensor.odysseus_odysseus_activity`. The payload
+  now carries only the entity-specific part ("Activity"), yielding
+  `sensor.odysseus_activity` and `sensor.odysseus_activity_<owner>`. The
+  unique_id changed once, so delete any leftover
+  `sensor.odysseus_odysseus_activity` entity.
+
 ## 1.0.8
 
 - Add **database connection** options: `db_type` (`sqlite`/`postgres`), a full
