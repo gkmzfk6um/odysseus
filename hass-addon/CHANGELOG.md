@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.11
+
+- Bind the web server **dual-stack** (`::`) by default. When the Home Assistant
+  host advertises AAAA records, browsers try IPv6 first; against an IPv4-only
+  listener (`0.0.0.0`) those connections were accepted and then reset
+  (`ERR_CONNECTION_RESET`) while IPv4/the raw IP worked. Falls back to `0.0.0.0`
+  if the container has no IPv6 stack. New `bind_address` option to override.
+
 ## 1.0.10
 
 - Stop sending `Strict-Transport-Security` on ingress responses. Because

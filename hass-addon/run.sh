@@ -141,6 +141,21 @@ fi
 ALLOWED_ORIGINS="$(jq -r '(.allowed_origins // []) | join(",")' "$OPTIONS" 2>/dev/null || true)"
 [ -n "$ALLOWED_ORIGINS" ] && export ALLOWED_ORIGINS="$ALLOWED_ORIGINS"
 
+# --- Bind address -----------------------------------------------------------
+# Prefer a dual-stack bind. When the add-on host has AAAA records, browsers try
+# IPv6 first; an IPv4-only listener (0.0.0.0) then makes those clients fail with
+# ERR_CONNECTION_RESET instead of reaching the app. Binding "::" accepts IPv6 and
+# (on Linux, v6only=0) IPv4-mapped connections. Falls back to IPv4 when the
+# container has no IPv6 stack at all.
+BIND_ADDRESS="$(_opt bind_address)"
+if [ -z "$BIND_ADDRESS" ]; then
+    if python -c 'import socket; s = socket.socket(socket.AF_INET6); s.bind(("::", 0)); s.close()' 2>/dev/null; then
+        BIND_ADDRESS="::"
+    else
+        BIND_ADDRESS="0.0.0.0"
+    fi
+fi
+
 # --- Free-form extra environment -------------------------------------------
 while IFS= read -r line; do
     [ -n "$line" ] && export "$line"
@@ -175,5 +190,5 @@ if [ -n "$ADMIN_USER" ] && [ -n "$ADMIN_PASSWORD" ]; then
     python /app/setup.py || log "setup.py reported an error (continuing)"
 fi
 
-log "Starting Odysseus on 0.0.0.0:7000 (data=/data, AUTH_ENABLED=${AUTH_ENABLED})"
-exec python -m uvicorn app:app --host 0.0.0.0 --port 7000
+log "Starting Odysseus on ${BIND_ADDRESS}:7000 (data=/data, AUTH_ENABLED=${AUTH_ENABLED})"
+exec python -m uvicorn app:app --host "$BIND_ADDRESS" --port 7000

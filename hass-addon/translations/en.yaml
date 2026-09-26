@@ -103,6 +103,11 @@ configuration:
     description: >-
       Additional KEY=VALUE entries to pass to Odysseus. Use this for any
       provider keys or tuning variables not covered above.
+  bind_address:
+    name: Bind address
+    description: >-
+      Address the web server listens on. Empty = automatic (dual-stack "::" when
+      IPv6 is available, else 0.0.0.0). Set 0.0.0.0 to force IPv4 only.
 
 network:
   7000/tcp: Odysseus web UI and API (direct access, outside ingress)

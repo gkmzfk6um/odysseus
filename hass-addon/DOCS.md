@@ -245,13 +245,13 @@ via `host.docker.internal` or by IP address.
 ## Notes and limitations
 
 - If the direct port resets over the hostname (`ERR_CONNECTION_RESET`) but works
-  over the raw IP, the browser is force-upgrading `http://host:7000` to HTTPS.
-  That is HSTS / "always use secure connections". The add-on no longer sends
-  HSTS through ingress, but a previously stored policy or Home Assistant's own
-  HTTPS setup can still pin the host: clear it under
-  `chrome://net-internals/#hsts` (delete the domain) or disable the browser's
-  HTTPS-first mode, then retry. Test with `curl.exe -v http://host:7000/api/version`
-  — curl ignores HSTS, so it working there confirms this.
+  over the raw IP, it is an IPv6 issue: browsers prefer the host's AAAA records.
+  The add-on now binds dual-stack, which fixes this when the IPv6 path forwards
+  to the container. If it still resets, the host resolves `homeassistant.local`
+  to an IPv6 address that never reaches the add-on — force IPv4 with a hosts
+  entry (`10.0.0.202 homeassistant.local`) or use the IP. Confirm with
+  `curl.exe -4 -v http://<host>:7000/api/version` (200) vs `curl.exe -6 …`
+  (Recv failure). Set `bind_address: 0.0.0.0` to force IPv4-only.
 
 - The add-on clones the Odysseus source at build time. To build your own fork
   or a pinned release, change the `ODYSSEUS_REPO` and `ODYSSEUS_REF` build
