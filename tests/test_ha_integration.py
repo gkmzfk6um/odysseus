@@ -241,6 +241,52 @@ def test_ha_config_summary_shape(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# HSTS must not be emitted on ingress (it would pin the HA host to HTTPS and
+# break the add-on's plain-HTTP direct port over that hostname).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_security_headers_skip_hsts_on_ingress():
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    from core.middleware import SecurityHeadersMiddleware
+
+    async def call_next(_request):
+        return Response("ok")
+
+    middleware = SecurityHeadersMiddleware(app=None)
+
+    def make(headers, client):
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/",
+            "raw_path": b"/",
+            "query_string": b"",
+            "root_path": "",
+            "headers": headers,
+            "client": client,
+            "server": ("test", 80),
+            "app": None,
+        }
+        return Request(scope)
+
+    ingress = make(
+        [(b"x-forwarded-proto", b"https"), (b"x-ingress-path", b"/api/hassio_ingress/tok")],
+        ("172.30.32.2", 1234),
+    )
+    response = await middleware.dispatch(ingress, call_next)
+    assert "strict-transport-security" not in response.headers
+
+    direct = make([(b"x-forwarded-proto", b"https")], ("10.0.0.9", 1234))
+    response = await middleware.dispatch(direct, call_next)
+    assert "strict-transport-security" in response.headers
+
+
+# ---------------------------------------------------------------------------
 # Ingress middleware (cache-busting + rewriting)
 # ---------------------------------------------------------------------------
 

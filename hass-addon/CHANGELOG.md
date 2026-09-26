@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.10
+
+- Stop sending `Strict-Transport-Security` on ingress responses. Because
+  ingress is served from the Home Assistant host, the header pinned that
+  hostname to HTTPS in the browser, which then force-upgraded the add-on's plain
+  HTTP direct port (`http://host:7000` → `https://host:7000`) and failed with
+  `ERR_CONNECTION_RESET`. The raw IP was never pinned, which is why it worked.
+  Direct HTTPS access still gets HSTS.
+
 ## 1.0.9
 
 - Fix the activity entity id. MQTT entities set `has_entity_name`, so Home

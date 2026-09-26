@@ -115,7 +115,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             request.url.scheme == "https"
             or request.headers.get("X-Forwarded-Proto") == "https"
         )
-        if is_https:
+        # Never send HSTS on an ingress-proxied response. Ingress is served from
+        # the Home Assistant host, so the header would pin that hostname to HTTPS
+        # in the browser — which then force-upgrades the add-on's PLAIN HTTP
+        # direct port (http://host:7000) to https://host:7000. TLS to a plain
+        # port gets reset, so the direct port appears broken over the hostname
+        # while the raw IP (unpinned) keeps working.
+        if is_https and not ingress_framed:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
         if is_report:
