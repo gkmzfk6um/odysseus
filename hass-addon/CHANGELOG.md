@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.15
+
+- Serve IPv4 and IPv6 from a **single dual-stack socket** (`IPV6_V6ONLY=0`).
+  Handing uvicorn two sockets only served one (IPv6 answered, IPv4 was refused).
+  If the kernel refuses `v6only=0`, it falls back to an IPv4-only socket.
+
 ## 1.0.14
 
 - Drop the `app_dir` argument to `uvicorn.Config`: it does not exist in every
