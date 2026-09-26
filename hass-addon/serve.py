@@ -67,11 +67,9 @@ def main() -> None:
     sockets = build_sockets()
     families = ", ".join("IPv6" if s.family == socket.AF_INET6 else "IPv4" for s in sockets)
     print(f"[odysseus] listening on port {PORT} ({families})")
-    config = uvicorn.Config(
-        "app:app",
-        app_dir=APP_DIR,
-        log_level=os.environ.get("LOG_LEVEL", "info"),
-    )
+    # No app_dir kwarg: it is absent in some uvicorn versions. sys.path.insert
+    # above (plus chdir) is what makes "app:app" resolve to /app/app.py.
+    config = uvicorn.Config("app:app", log_level=os.environ.get("LOG_LEVEL", "info"))
     uvicorn.Server(config).run(sockets=sockets)
 
 

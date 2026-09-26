@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.14
+
+- Drop the `app_dir` argument to `uvicorn.Config`: it does not exist in every
+  uvicorn version (`TypeError: Config.__init__() got an unexpected keyword
+  argument 'app_dir'`). The `sys.path.insert` + `chdir` in `serve.py` already
+  make `app:app` resolve to `/app/app.py`.
+
 ## 1.0.13
 
 - Fix the 1.0.12 start failure. Running `python /serve.py` puts `/` on
