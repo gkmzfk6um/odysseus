@@ -4,6 +4,7 @@ import os
 from typing import Optional
 from fastapi import Request, HTTPException
 
+from src.net_utils import normalize_client_ip
 from src.owner_identity import auth_disabled, effective_storage_owner
 
 
@@ -145,7 +146,7 @@ def require_user(request: Request) -> str:
         return ""
     auth_mgr = getattr(request.app.state, "auth_manager", None)
     client = getattr(request, "client", None)
-    host = (client.host if client else "") or ""
+    host = normalize_client_ip(client.host if client else "") or ""
     is_loopback = host in ("127.0.0.1", "::1", "localhost")
     # LOCALHOST_BYPASS=true is the dev-only "I'm on loopback, skip auth"
     # switch. Mirror the middleware so routes don't 401 the same caller

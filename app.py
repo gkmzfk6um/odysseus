@@ -92,6 +92,7 @@ from src.ha_integration import (
     is_ha_ingress_request,
     provision_ha_user,
 )
+from src.net_utils import normalize_client_ip
 from starlette.responses import RedirectResponse
 
 # ========= LOGGING =========
@@ -367,7 +368,9 @@ if AUTH_ENABLED:
         slip past LOCALHOST_BYPASS or spoof the internal-tool path. Odysseus's own
         in-process agent loopback calls carry none of these headers, so they still
         qualify."""
-        host = request.client.host if request.client else None
+        # Normalize: a dual-stack listener reports IPv4 peers as
+        # "::ffff:127.0.0.1", which would otherwise defeat this check.
+        host = normalize_client_ip(request.client.host if request.client else None)
         if host not in ("127.0.0.1", "::1"):
             return False
         for _h in _PROXY_FWD_HEADERS:

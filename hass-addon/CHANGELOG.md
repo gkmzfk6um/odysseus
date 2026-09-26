@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.16
+
+- Normalize IPv4-mapped IPv6 client addresses (`::ffff:172.30.32.2`). The
+  dual-stack listener made the Home Assistant ingress trust check and the
+  loopback checks compare against the mapped form instead of the plain IPv4
+  literal, so the sidebar panel and internal loopback calls stopped working
+  while direct curl still worked.
+
 ## 1.0.15
 
 - Serve IPv4 and IPv6 from a **single dual-stack socket** (`IPV6_V6ONLY=0`).

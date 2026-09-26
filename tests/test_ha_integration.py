@@ -85,6 +85,29 @@ def test_is_ha_ingress_request_requires_flag_trust_and_identity(monkeypatch):
     assert ha.is_ha_ingress_request(no_identity) is False
 
 
+def test_normalize_client_ip():
+    from src.net_utils import normalize_client_ip
+
+    assert normalize_client_ip("::ffff:172.30.32.2") == "172.30.32.2"
+    assert normalize_client_ip("::ffff:127.0.0.1") == "127.0.0.1"
+    assert normalize_client_ip("172.30.32.2") == "172.30.32.2"
+    assert normalize_client_ip("::1") == "::1"
+    assert normalize_client_ip(None) == ""
+    assert normalize_client_ip("") == ""
+
+
+def test_ingress_trust_matches_ipv4_mapped_supervisor(monkeypatch):
+    # A dual-stack listener reports the Supervisor's IPv4 connection as
+    # ::ffff:172.30.32.2; the trust check must still match.
+    monkeypatch.setenv("ODYSSEUS_HA_INGRESS_AUTH", "true")
+    request = FakeRequest({"X-Remote-User-Name": "alice"}, host="::ffff:172.30.32.2")
+    assert ha.is_trusted_ingress_client(request) is True
+    assert ha.is_ha_ingress_request(request) is True
+
+    proxied = FakeRequest({"X-Ingress-Path": "/api/hassio_ingress/tok"}, host="::ffff:172.30.32.2")
+    assert ha.is_ingress_proxied_request(proxied) is True
+
+
 # ---------------------------------------------------------------------------
 # Provisioning
 # ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ from typing import Any, Optional
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from src.net_utils import get_client_ip
 from src.owner_identity import RESERVED_AUTH_USERNAMES
 
 logger = logging.getLogger(__name__)
@@ -103,9 +104,9 @@ def get_ha_identity(request) -> Optional[dict[str, str]]:
 
 
 def is_trusted_ingress_client(request) -> bool:
-    client = getattr(request, "client", None)
-    host = (client.host if client else "") or ""
-    return host in ha_trusted_ips()
+    # Normalized: with a dual-stack listener the Supervisor's IPv4 connection
+    # arrives as "::ffff:172.30.32.2".
+    return get_client_ip(request) in ha_trusted_ips()
 
 
 def is_ha_ingress_request(request) -> bool:
