@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.12
+
+- Fix IPv4 access that 1.0.11 broke. Binding `::` is IPv6-only where
+  `net.ipv6.bindv6only=1`, so the add-on stopped answering over IPv4. The server
+  now opens an IPv4 socket and an IPv6 socket explicitly (`hass-addon/serve.py`)
+  so both families work; `bind_address` still forces a single address.
+
 ## 1.0.11
 
 - Bind the web server **dual-stack** (`::`) by default. When the Home Assistant

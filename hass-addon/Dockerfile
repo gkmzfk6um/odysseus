@@ -71,6 +71,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 RUN mkdir -p data logs services/cache/search
 
 COPY run.sh /run.sh
+COPY serve.py /serve.py
 COPY seed_provider.py /seed_provider.py
 COPY seed_settings.py /seed_settings.py
 COPY db_url.py /db_url.py
