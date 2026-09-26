@@ -72,6 +72,8 @@ RUN mkdir -p data logs services/cache/search
 
 COPY run.sh /run.sh
 COPY seed_provider.py /seed_provider.py
+COPY seed_settings.py /seed_settings.py
+COPY db_url.py /db_url.py
 RUN chmod a+x /run.sh
 
 # All persistent state lives on the Home Assistant /data volume. HOME points

@@ -6,13 +6,26 @@ field makes Supervisor treat the whole add-on as invalid and hide it from the
 store. Mirroring the checks here catches that before it reaches Home Assistant.
 """
 
+import os
 import re
+import importlib.util
+import json
 from pathlib import Path
 
 import yaml
 
-CONFIG_PATH = Path(__file__).resolve().parents[1] / "hass-addon" / "config.yaml"
-REPO_PATH = Path(__file__).resolve().parents[1] / "repository.yaml"
+BASE = Path(__file__).resolve().parents[1]
+CONFIG_PATH = BASE / "hass-addon" / "config.yaml"
+REPO_PATH = BASE / "repository.yaml"
+DB_URL_PATH = BASE / "hass-addon" / "db_url.py"
+SEED_SETTINGS_PATH = BASE / "hass-addon" / "seed_settings.py"
+
+
+def _load(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 # From supervisor/apps/validate.py
 RE_SERVICE = re.compile(r"^(?P<service>mqtt|mysql):(?P<rights>provide|want|need)$")
@@ -90,3 +103,54 @@ def test_ingress_panel_fields():
     assert isinstance(cfg["ingress_port"], int) and cfg["ingress_port"] > 0
     assert cfg.get("panel_icon", "").startswith("mdi:")
     assert cfg.get("panel_title")
+
+
+# ---------------------------------------------------------------------------
+# PostgreSQL URL builder
+# ---------------------------------------------------------------------------
+
+def test_db_url_builder_percent_encodes_credentials():
+    db_url = _load(DB_URL_PATH, "addon_db_url")
+    url = db_url.build_database_url(
+        host="db.local", port="5433", name="ody", user="user", password="p@ss/wo:rd",
+    )
+    assert url == "postgresql+psycopg2://user:p%40ss%2Fwo%3Ard@db.local:5433/ody"
+
+
+def test_db_url_builder_defaults_and_no_auth():
+    db_url = _load(DB_URL_PATH, "addon_db_url")
+    assert db_url.build_database_url(host="") == "postgresql+psycopg2://localhost:5432/odysseus"
+    assert db_url.build_database_url(host="h", user="u") == "postgresql+psycopg2://u@h:5432/odysseus"
+
+
+# ---------------------------------------------------------------------------
+# Search settings seeder
+# ---------------------------------------------------------------------------
+
+def _run_seed_settings(tmp_path, provider, url):
+    module = _load(SEED_SETTINGS_PATH, "addon_seed_settings")
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(json.dumps({"keep_me": True}), encoding="utf-8")
+    os.environ["ODYSSEUS_SETTINGS_FILE"] = str(settings_file)
+    os.environ["ODYSSEUS_SEED_SEARCH_PROVIDER"] = provider
+    os.environ["ODYSSEUS_SEED_SEARCH_URL"] = url
+    try:
+        assert module.main() == 0
+    finally:
+        for key in ("ODYSSEUS_SETTINGS_FILE", "ODYSSEUS_SEED_SEARCH_PROVIDER", "ODYSSEUS_SEED_SEARCH_URL"):
+            os.environ.pop(key, None)
+    return json.loads(settings_file.read_text(encoding="utf-8"))
+
+
+def test_seed_settings_writes_provider_and_url(tmp_path):
+    data = _run_seed_settings(tmp_path, "brave", "http://searxng:8080")
+    assert data["search_provider"] == "brave"
+    assert data["search_url"] == "http://searxng:8080"
+    assert data["keep_me"] is True  # unrelated keys preserved
+
+
+def test_seed_settings_none_is_noop(tmp_path):
+    data = _run_seed_settings(tmp_path, "none", "")
+    assert "search_provider" not in data
+    assert "search_url" not in data
+    assert data["keep_me"] is True

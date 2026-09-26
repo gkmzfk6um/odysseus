@@ -73,6 +73,16 @@ admin_password: ""          # Optional initial local admin password
 llm_provider: none          # openai | anthropic | openrouter | groq | deepseek | google | mistral | none
 llm_api_key: ""             # API key for the selected provider (stored encrypted)
 llm_model: ""               # Optional model ID to pin (else pick from the list in the app)
+db_type: sqlite             # sqlite | postgres
+db_url: ""                  # Optional full connection string (overrides the fields below)
+db_host: ""                 # PostgreSQL host
+db_port: ""                 # PostgreSQL port (default 5432)
+db_name: ""                 # PostgreSQL database (default odysseus)
+db_user: ""                 # PostgreSQL user
+db_password: ""             # PostgreSQL password
+search_provider: none       # searxng | brave | tavily | serper | google_pse | duckduckgo | disabled | none
+search_url: ""              # SearXNG base URL, e.g. http://searxng:8080
+search_api_key: ""          # API key for brave/tavily/serper/google_pse
 llm_host: localhost         # Default LLM server host
 ollama_base_url: ""         # e.g. http://host.docker.internal:11434
 allowed_origins: []         # Extra CORS origins
@@ -101,6 +111,61 @@ lists providers that need nothing but a key:
 Local servers (Ollama, LM Studio) are configured with `ollama_base_url` or in
 the app itself. The add-on option is authoritative: it rewrites the endpoint's
 key on every start.
+
+### Database
+
+By default everything lives in SQLite on the `/data` volume — no configuration
+needed. To use an external **PostgreSQL** server, set:
+
+```yaml
+db_type: postgres
+db_host: 192.168.1.20
+db_port: "5432"
+db_name: odysseus
+db_user: odysseus
+db_password: "your password"
+```
+
+The user and password are percent-encoded, so special characters are safe. For
+anything more exotic set `db_url` to a full SQLAlchemy string (e.g.
+`postgresql+psycopg2://user:pass@host:5432/odysseus`); it overrides the fields.
+
+Switching the database does **not** migrate existing data — point the add-on at
+an empty database or import your SQLite data yourself. The add-on creates the
+schema on first start.
+
+### Web search
+
+Pick the backend in **Search provider**:
+
+| Provider | `search_provider` | Needs |
+| --- | --- | --- |
+| SearXNG (default) | `searxng` | `search_url` (or a bundled/host instance) |
+| Brave Search API | `brave` | `search_api_key` |
+| Tavily | `tavily` | `search_api_key` |
+| Serper.dev | `serper` | `search_api_key` |
+| Google Programmable Search | `google_pse` | `search_api_key` |
+| DuckDuckGo (no key) | `duckduckgo` | – |
+| Disabled | `disabled` | – |
+
+Example (key-based provider):
+
+```yaml
+search_provider: brave
+search_api_key: "BSA..."
+```
+
+Example (self-hosted SearXNG, reachable from the add-on network):
+
+```yaml
+search_provider: searxng
+search_url: http://searxng:8080
+```
+
+The provider is written into the app settings on start (authoritative — a
+change made in the app is reset on the next restart). API keys are passed as
+environment variables, so a key set inside the app takes precedence over the
+add-on option.
 
 Anything Odysseus supports through environment variables can be passed with
 `extra_env`, for example:

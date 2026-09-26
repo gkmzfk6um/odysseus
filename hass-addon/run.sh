@@ -75,6 +75,52 @@ if [ -n "$SEED_PROVIDER" ] && [ "$SEED_PROVIDER" != "none" ] && [ -n "$SEED_KEY"
     fi
 fi
 
+# --- Database ---------------------------------------------------------------
+# DATABASE_URL must be exported before the bootstrap import below. sqlite (the
+# default) stays on the /data volume; postgres is built from the parts so that
+# a password containing @ / : is percent-encoded correctly.
+DB_TYPE="$(_opt db_type)"
+DB_URL="$(_opt db_url)"
+if [ -n "$DB_URL" ]; then
+    export DATABASE_URL="$DB_URL"
+    log "Using custom DATABASE_URL"
+elif [ "$DB_TYPE" = "postgres" ]; then
+    export ODYSSEUS_DB_HOST="$(_opt db_host)"
+    export ODYSSEUS_DB_PORT="$(_opt db_port)"
+    export ODYSSEUS_DB_NAME="$(_opt db_name)"
+    export ODYSSEUS_DB_USER="$(_opt db_user)"
+    export ODYSSEUS_DB_PASSWORD="$(_opt db_password)"
+    export DATABASE_URL="$(python /db_url.py)"
+    unset ODYSSEUS_DB_PASSWORD
+    log "Using PostgreSQL database"
+fi
+
+# --- Web search -------------------------------------------------------------
+# The provider is an app setting, seeded into settings.json after DB init. The
+# API key is handed over as the environment variable the search layer reads.
+SEARCH_PROVIDER="$(_opt search_provider)"
+SEARCH_URL="$(_opt search_url)"
+SEARCH_KEY="$(_opt search_api_key)"
+if [ -n "$SEARCH_URL" ]; then
+    export SEARXNG_INSTANCE="$SEARCH_URL"
+fi
+case "$SEARCH_PROVIDER" in
+    brave)
+        if [ -n "$SEARCH_KEY" ]; then export DATA_BRAVE_API_KEY="$SEARCH_KEY"; fi
+        ;;
+    tavily)
+        if [ -n "$SEARCH_KEY" ]; then export TAVILY_API_KEY="$SEARCH_KEY"; fi
+        ;;
+    serper)
+        if [ -n "$SEARCH_KEY" ]; then export SERPER_API_KEY="$SEARCH_KEY"; fi
+        ;;
+    google_pse)
+        if [ -n "$SEARCH_KEY" ]; then export GOOGLE_API_KEY="$SEARCH_KEY"; fi
+        ;;
+esac
+export ODYSSEUS_SEED_SEARCH_PROVIDER="$SEARCH_PROVIDER"
+export ODYSSEUS_SEED_SEARCH_URL="$SEARCH_URL"
+
 # --- Home Assistant MQTT (live activity entity) -----------------------------
 # Broker credentials live behind the Supervisor services API. Declaring the
 # mqtt service in config.yaml is what makes this endpoint return data; without a
@@ -115,6 +161,11 @@ PY
 # Seed the provider model endpoint chosen in the add-on options.
 if [ -n "${ODYSSEUS_SEED_PROVIDER:-}" ]; then
     python /seed_provider.py || log "provider seed failed (continuing)"
+fi
+
+# Apply the search provider setting chosen in the add-on options.
+if [ -n "${ODYSSEUS_SEED_SEARCH_PROVIDER:-}" ] || [ -n "${ODYSSEUS_SEED_SEARCH_URL:-}" ]; then
+    python /seed_settings.py || log "search settings seed failed (continuing)"
 fi
 
 # Create the initial admin only when the operator supplied credentials.

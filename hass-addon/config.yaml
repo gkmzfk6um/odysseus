@@ -1,5 +1,5 @@
 name: Odysseus
-version: "1.0.7"
+version: "1.0.8"
 slug: odysseus
 description: >-
   Self-hosted AI workspace for chat, agents, deep research, documents, email,
@@ -77,6 +77,12 @@ options:
   # Pick the provider your API key is for; the add-on seeds a ready-to-use
   # model endpoint for it. "none" = configure models in the app instead.
   llm_provider: none
+  # --- Database ----------------------------------------------------------
+  # "sqlite" keeps everything on the /data volume. "postgres" uses the server
+  # configured below; set db_url to override the whole connection string.
+  db_type: sqlite
+  # --- Web search --------------------------------------------------------
+  search_provider: none
   # --- Networking --------------------------------------------------------
   llm_host: localhost
   allowed_origins: []
@@ -97,6 +103,16 @@ schema:
   llm_provider: list(openai|anthropic|openrouter|groq|deepseek|google|mistral|none)
   llm_api_key: password?
   llm_model: str?
+  db_type: list(sqlite|postgres)
+  db_url: str?
+  db_host: str?
+  db_port: str?
+  db_name: str?
+  db_user: str?
+  db_password: password?
+  search_provider: list(searxng|brave|tavily|serper|google_pse|duckduckgo|disabled|none)
+  search_url: str?
+  search_api_key: password?
   llm_host: str
   allowed_origins:
     - str

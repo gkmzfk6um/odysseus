@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.8
+
+- Add **database connection** options: `db_type` (`sqlite`/`postgres`), a full
+  `db_url` override, and `db_host`/`db_port`/`db_name`/`db_user`/`db_password`
+  (credentials percent-encoded). `DATABASE_URL` is exported before schema init.
+- Add **web search provider** options: `search_provider` dropdown plus
+  `search_url` (SearXNG) and `search_api_key` (brave/tavily/serper/google_pse).
+  The provider is written into the app settings on start; the key is passed via
+  the provider's environment variable.
+
 ## 1.0.7
 
 - Fix an invalid add-on manifest that made Home Assistant hide the add-on: the
