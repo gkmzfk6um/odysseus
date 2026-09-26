@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.13
+
+- Fix the 1.0.12 start failure. Running `python /serve.py` puts `/` on
+  `sys.path`, so `import app` resolved to the `/app` directory and uvicorn
+  failed with `Attribute "app" not found in module "app"`. `serve.py` now puts
+  the app directory (`/app`) on `sys.path` and passes `app_dir` to uvicorn.
+
 ## 1.0.12
 
 - Fix IPv4 access that 1.0.11 broke. Binding `::` is IPv6-only where

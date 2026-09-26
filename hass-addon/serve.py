@@ -19,6 +19,11 @@ import uvicorn
 
 PORT = int(os.environ.get("APP_PORT", "7000"))
 BIND = (os.environ.get("ODYSSEUS_BIND_ADDRESS") or "").strip()
+# Where the application source lives. Running this script as `python /serve.py`
+# puts "/" (the script's directory) on sys.path, not the app dir, so `import app`
+# would otherwise resolve to the /app DIRECTORY and uvicorn would report
+# "Attribute 'app' not found in module 'app'".
+APP_DIR = os.environ.get("ODYSSEUS_APP_DIR", "/app")
 
 
 def _listen(family: int, address, v6only=None) -> socket.socket:
@@ -52,10 +57,21 @@ def build_sockets() -> list[socket.socket]:
 
 
 def main() -> None:
+    if APP_DIR not in sys.path:
+        sys.path.insert(0, APP_DIR)
+    try:
+        os.chdir(APP_DIR)
+    except OSError:
+        pass
+
     sockets = build_sockets()
     families = ", ".join("IPv6" if s.family == socket.AF_INET6 else "IPv4" for s in sockets)
     print(f"[odysseus] listening on port {PORT} ({families})")
-    config = uvicorn.Config("app:app", log_level=os.environ.get("LOG_LEVEL", "info"))
+    config = uvicorn.Config(
+        "app:app",
+        app_dir=APP_DIR,
+        log_level=os.environ.get("LOG_LEVEL", "info"),
+    )
     uvicorn.Server(config).run(sockets=sockets)
 
 
